@@ -1,13 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
-
+import path from "path";
+import fs from "fs/promises";
 import User from "../models/user.js";
-
+import gravatar from "gravatar";
 import { HttpError } from "../helpers/index.js";
 import ctrlWrapper from "../decorators/ctrlWrapper.js";
 
 const { JWT_SECRET } = process.env;
+const avatarDir = path.resolve("public", "avatars");
 
 const register = async (req, res) => {
 	const { email, password } = req.body;
@@ -17,8 +19,13 @@ const register = async (req, res) => {
 	}
 
 	const hashPassword = await bcrypt.hash(password, 10);
+	const avatarURL = gravatar.url(email);
 
-	const newUser = await User.create({ ...req.body, password: hashPassword });
+	const newUser = await User.create({
+		...req.body,
+		password: hashPassword,
+		avatarURL,
+	});
 
 	res.status(201).json({
 		password: newUser.password,
@@ -61,10 +68,20 @@ const logout = async (req, res) => {
 
 	res.status(204);
 };
+const updateAvatar = async (req, res) => {
+	const { _id } = req.user;
+	const { path: tempUpload, filename } = req.file;
+	const resultUpload = path.join(avatarDir, filename);
+	await fs.rename(tempUpload, resultUpload);
+	const avatarURL = path.join("avatars", filename);
+	await User.findByIdAndUpdate(_id, { avatarURL });
 
+	res.json({ avatarURL });
+};
 export default {
 	register: ctrlWrapper(register),
 	login: ctrlWrapper(login),
 	getCurrent: ctrlWrapper(getCurrent),
 	logout: ctrlWrapper(logout),
+	updateAvatar: ctrlWrapper(updateAvatar),
 };
